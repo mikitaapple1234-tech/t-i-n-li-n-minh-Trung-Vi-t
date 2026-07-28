@@ -40,15 +40,21 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ theo đúng định
   Nếu từ không thuộc rõ về LMHT (từ vựng tiếng Trung thông thường), chọn "Từ vựng chung".`;
 
   try {
-    const model = "gemini-2.5-flash";
+    // Dùng model gemini-1.5-flash với cấu trúc payload chuẩn để tránh lỗi 502 trên serverless
+    const model = "gemini-1.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: word.trim() }] }],
-        systemInstruction: { parts: [{ text: system }] },
+        contents: [
+          {
+            parts: [
+              { text: `${system}\n\nTừ cần tra: ${word.trim()}` }
+            ]
+          }
+        ],
         generationConfig: {
           responseMimeType: "application/json",
         },
@@ -79,5 +85,5 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ theo đúng định
     });
   } catch (e) {
     res.status(500).json({ error: "Lỗi xử lý tra cứu", detail: String(e) });
-  }
+  } 
 }
