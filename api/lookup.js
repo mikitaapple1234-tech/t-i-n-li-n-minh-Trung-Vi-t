@@ -31,7 +31,8 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ, không kèm markdo
 - "folder": tên thư mục được chọn từ danh sách trên.`;
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    // Sử dụng model gemini-1.5-flash cực kỳ ổn định cho serverless
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const response = await fetch(geminiUrl, {
       method: "POST",
@@ -51,6 +52,7 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ, không kèm markdo
 
     if (!response.ok) {
       const errText = await response.text();
+      console.error("Gemini API Error Detail:", errText);
       res.status(502).json({ error: "Lỗi gọi API Gemini", detail: errText });
       return;
     }
@@ -72,6 +74,7 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ, không kèm markdo
       folder: parsed.folder || "Chung",
     });
   } catch (e) {
+    console.error("Server Catch Error:", e);
     res.status(500).json({ error: "Lỗi xử lý tra cứu", detail: String(e) });
   }
 }
