@@ -1,67 +1,83 @@
+// Vercel serverless function — gọi Gemini API, key được giữ bí mật phía server.
+// Đặt biến môi trường GEMINI_API_KEY trong Vercel dashboard (không ghi trực tiếp ở đây).
+// Lấy API key tại: https://aistudio.google.com/apikey
+
+const CATEGORIES = [
+  "Tên tướng",
+  "Kỹ năng / Chiêu thức",
+  "Vai trò / Lối chơi",
+  "Trang bị / Vật phẩm",
+  "Thuật ngữ trận đấu",
+  "Từ vựng chung",
+];
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Chỉ hỗ trợ POST" });
+    res.status(405).json({ error: "Chỉ hỗ trợ POST" });
+    return;
   }
 
-  const { word, folders } = req.body || {};
+  const { word } = req.body || {};
   if (!word || typeof word !== "string" || !word.trim()) {
-    return res.status(400).json({ error: "Thiếu từ cần tra" });
+    res.status(400).json({ error: "Thiếu từ cần tra" });
+    return;
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "Server chưa cấu hình GEMINI_API_KEY" });
+    res.status(500).json({ error: "Server chưa cấu hình GEMINI_API_KEY" });
+    return;
   }
 
-  const availableFolders = Array.isArray(folders) && folders.length > 0 
-    ? folders.filter(f => f !== "Tất cả").join(", ") 
-    : "Chung, Tướng, Kỹ năng";
-
-  const systemInstruction = `Bạn là trợ lý tra cứu từ vựng tiếng Trung chuyên về game Liên Minh Huyền Thoại.
-Hãy chọn một thư mục phù hợp trong danh sách: [${availableFolders}]. Nếu không khớp, chọn "Chung".
-Trả lời DUY NHẤT một đối tượng JSON hợp lệ, không kèm markdown, theo định dạng:
-{"pinyin": "...", "meaning": "...", "note": "...", "folder": "..."}`;
+  const system = `Bạn là trợ lý tra cứu từ vựng tiếng Trung chuyên về game Liên Minh Huyền Thoại (LMHT / League of Legends).
+Người dùng sẽ đưa ra một từ hoặc cụm từ tiếng Trung (có thể là thuật ngữ trong game, tên tướng, kỹ năng, hoặc từ vựng thông thường).
+Trả lời DUY NHẤT một đối tượng JSON hợp lệ theo đúng định dạng:
+{"pinyin": "...", "meaning": "...", "note": "...", "category": "..."}
+- "pinyin": phiên âm pinyin có dấu thanh của từ.
+- "meaning": nghĩa tiếng Việt, ngắn gọn, súc tích. Nếu từ có liên quan đến LMHT (thuật ngữ game, tên tướng, lối chơi, vị trí, chiêu thức...) hãy ưu tiên nghĩa trong ngữ cảnh đó.
+- "note": ghi chú thêm ngắn gọn (cách dùng, ví dụ trong game, hoặc phân biệt với từ dễ nhầm), có thể để chuỗi rỗng nếu không cần thiết.
+- "category": chọn CHÍNH XÁC một trong các nhóm sau (viết đúng nguyên văn, không tự đặt tên khác): ${CATEGORIES.map((c) => `"${c}"`).join(", ")}.
+  Nếu từ không thuộc rõ về LMHT (từ vựng tiếng Trung thông thường), chọn "Từ vựng chung".`;
 
   try {
-    // Dùng endpoint chuẩn của gemini-1.5-flash
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    
-    const response = await fetch(geminiUrl, {
+    const model = "gemini-2.5-flash";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+    const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: `${systemInstruction}\n\nTừ cần tra: ${word.trim()}` }
-            ]
-          }
-        ]
+        contents: [{ parts: [{ text: word.trim() }] }],
+        systemInstruction: { parts: [{ text: system }] },
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
       }),
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      return res.status(502).json({ error: "Lỗi từ Google API", detail: data?.error?.message || JSON.stringify(data) });
+      const errText = await response.text();
+      res.status(502).json({ error: "Lỗi gọi API Gemini", detail: errText });
+      return;
     }
 
-    const textContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textContent) {
-      return res.status(502).json({ error: "Không nhận được nội dung từ AI" });
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      res.status(502).json({ error: "Không có phản hồi văn bản từ model" });
+      return;
     }
 
-    // Làm sạch chuỗi JSON nếu AI lỡ bọc trong markdown
-    const cleanJson = textContent.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsed = JSON.parse(cleanJson);
+    const cleaned = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(cleaned);
 
-    return res.status(200).json({
+    res.status(200).json({
       pinyin: parsed.pinyin || "",
       meaning: parsed.meaning || "",
       note: parsed.note || "",
-      folder: parsed.folder || "Chung",
+      category: CATEGORIES.includes(parsed.category) ? parsed.category : "Từ vựng chung",
     });
   } catch (e) {
-    return res.status(500).json({ error: "Lỗi xử lý server", detail: String(e) });
+    res.status(500).json({ error: "Lỗi xử lý tra cứu", detail: String(e) });
   }
 }
