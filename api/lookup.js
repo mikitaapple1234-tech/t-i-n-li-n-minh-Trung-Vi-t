@@ -40,7 +40,6 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ theo đúng định
   Nếu từ không thuộc rõ về LMHT (từ vựng tiếng Trung thông thường), chọn "Từ vựng chung".`;
 
   try {
-    // Dùng model gemini-1.5-flash với cấu trúc payload chuẩn để tránh lỗi 502 trên serverless
     const model = "gemini-1.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -48,13 +47,7 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ theo đúng định
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              { text: `${system}\n\nTừ cần tra: ${word.trim()}` }
-            ]
-          }
-        ],
+        contents: [{ parts: [{ text: `${system}\n\nTừ cần tra: ${word.trim()}` }] }],
         generationConfig: {
           responseMimeType: "application/json",
         },
