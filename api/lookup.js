@@ -31,7 +31,7 @@ Trả lời DUY NHẤT một đối tượng JSON hợp lệ, không kèm markdo
 - "folder": tên thư mục được chọn từ danh sách trên.`;
 
   try {
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro-preview:generateContent?key=${apiKey}`;
     
     const response = await fetch(geminiUrl, {
       method: "POST",
